@@ -1,0 +1,31 @@
+name: TCMB Kurlarini Takvime Isle
+
+on:
+  schedule:
+    # Pazartesi - Cuma: UTC 12:40 (TSİ 15:40)
+    - cron: '40 12 * * 1-5'
+  workflow_dispatch: # İhtiyaç anında GitHub arayüzünden manuel tetikleme butonu
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu Klonla
+        uses: actions/checkout@v4
+
+      - name: Python Kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Paketleri Yukle
+        run: |
+          pip install -r requirements.txt
+
+      - name: Kurlari Cek ve Takvime Yaz
+        env:
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
+        run: |
+          python main.py
