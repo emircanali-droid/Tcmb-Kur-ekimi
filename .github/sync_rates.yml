@@ -4,7 +4,7 @@ on:
   schedule:
     # Pazartesi - Cuma: UTC 12:40 (TSİ 15:40)
     - cron: '40 12 * * 1-5'
-  workflow_dispatch: # İhtiyaç anında GitHub arayüzünden manuel tetikleme butonu
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Kodu Klonla
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Python Kurulumu
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
 
