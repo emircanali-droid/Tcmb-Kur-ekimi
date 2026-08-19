@@ -77,3 +77,4 @@ def add_to_calendar(bulten_tarihi, description):
 if __name__ == "__main__":
     bulten_tarihi, ozet = get_tcmb_rates()
     add_to_calendar(bulten_tarihi, ozet)
+    python cleanup.py
