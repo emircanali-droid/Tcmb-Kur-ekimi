@@ -1,10 +1,27 @@
 import os
 import json
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 import urllib.request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
+def get_next_business_day(current_date):
+    """
+    Bir sonraki iş gününü hesaplar:
+    Pazartesi-Perşembe -> +1 gün (Salı-Cuma)
+    Cuma -> +3 gün (Pazartesi)
+    Cumartesi -> +2 gün (Pazartesi)
+    Pazar -> +1 gün (Pazartesi)
+    """
+    weekday = current_date.weekday()  # 0: Pazartesi, 4: Cuma, 5: Cumartesi, 6: Pazar
+    
+    if weekday == 4:  # Cuma günü 15:30 sonrası çekilen kur -> Pazartesi gününün kurudur
+        return current_date + timedelta(days=3)
+    elif weekday == 5:  # Cumartesi
+        return current_date + timedelta(days=2)
+    else:  # Pzt, Sal, Çar, Per, Paz
+        return current_date + timedelta(days=1)
 
 def get_tcmb_rates():
     url = "https://www.tcmb.gov.tr/kurlar/today.xml"
@@ -14,7 +31,7 @@ def get_tcmb_rates():
         xml_data = response.read()
         
     root = ET.fromstring(xml_data)
-    date_str = root.attrib.get('Tarih', datetime.now().strftime("%d.%m.%Y"))
+    bulten_tarihi = root.attrib.get('Tarih', datetime.now().strftime("%d.%m.%Y"))
     
     target_currencies = ['USD', 'EUR', 'GBP']
     rates_summary = []
@@ -27,10 +44,10 @@ def get_tcmb_rates():
             forex_sell = currency.find('ForexSelling').text or '-'
             rates_summary.append(f"• {code} ({name})\n  Alış: {forex_buy} | Satış: {forex_sell}")
             
-    return date_str, "\n\n".join(rates_summary)
+    rates_text = f"Bülten Tarihi: {bulten_tarihi}\n\n" + "\n\n".join(rates_summary)
+    return bulten_tarihi, rates_text
 
-def add_to_calendar(date_str, description):
-    # Google kimlik bilgilerini GitHub Secrets'tan al
+def add_to_calendar(bulten_tarihi, description):
     service_account_info = json.loads(os.environ['GOOGLE_CREDENTIALS_JSON'])
     calendar_id = os.environ['CALENDAR_ID']
     
@@ -40,18 +57,23 @@ def add_to_calendar(date_str, description):
     )
     
     service = build('calendar', 'v3', credentials=creds)
-    today_iso = datetime.now().strftime("%Y-%m-%d")
+    
+    # Kurların geçerli olduğu bir sonraki iş günü
+    today = datetime.now()
+    target_date = get_next_business_day(today)
+    target_date_iso = target_date.strftime("%Y-%m-%d")
+    target_date_str = target_date.strftime("%d.%m.%Y")
     
     event = {
-        'summary': f'TCMB Kurları ({date_str})',
-        'description': description,
-        'start': {'date': today_iso},
-        'end': {'date': today_iso},
+        'summary': f'TCMB Kurları ({target_date_str})',
+        'description': f"Bu kurlar {target_date_str} tarihi için geçerlidir.\n\n{description}",
+        'start': {'date': target_date_iso},
+        'end': {'date': target_date_iso},
     }
     
     result = service.events().insert(calendarId=calendar_id, body=event).execute()
-    print(f"Etkinlik oluşturuldu: {result.get('htmlLink')}")
+    print(f"Etkinlik {target_date_str} tarihine oluşturuldu: {result.get('htmlLink')}")
 
 if __name__ == "__main__":
-    tarih, ozet = get_tcmb_rates()
-    add_to_calendar(tarih, ozet)
+    bulten_tarihi, ozet = get_tcmb_rates()
+    add_to_calendar(bulten_tarihi, ozet)
