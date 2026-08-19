@@ -7,16 +7,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 def get_next_business_day(current_date):
-    """
-    Bir sonraki iş gününü hesaplar:
-    Pazartesi-Perşembe -> +1 gün (Salı-Cuma)
-    Cuma -> +3 gün (Pazartesi)
-    Cumartesi -> +2 gün (Pazartesi)
-    Pazar -> +1 gün (Pazartesi)
-    """
-    weekday = current_date.weekday()  # 0: Pazartesi, 4: Cuma, 5: Cumartesi, 6: Pazar
+    weekday = current_date.weekday()  # 0: Pzt, 4: Cuma, 5: Cmt, 6: Paz
     
-    if weekday == 4:  # Cuma günü 15:30 sonrası çekilen kur -> Pazartesi gününün kurudur
+    if weekday == 4:  # Cuma 15:30 sonrası -> Pazartesi
         return current_date + timedelta(days=3)
     elif weekday == 5:  # Cumartesi
         return current_date + timedelta(days=2)
@@ -58,7 +51,6 @@ def add_to_calendar(bulten_tarihi, description):
     
     service = build('calendar', 'v3', credentials=creds)
     
-    # Kurların geçerli olduğu bir sonraki iş günü
     today = datetime.now()
     target_date = get_next_business_day(today)
     target_date_iso = target_date.strftime("%Y-%m-%d")
@@ -77,4 +69,3 @@ def add_to_calendar(bulten_tarihi, description):
 if __name__ == "__main__":
     bulten_tarihi, ozet = get_tcmb_rates()
     add_to_calendar(bulten_tarihi, ozet)
-    python cleanup.py
