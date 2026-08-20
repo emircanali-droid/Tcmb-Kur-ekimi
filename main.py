@@ -56,15 +56,18 @@ def add_to_calendar(bulten_tarihi, description):
     target_date_iso = target_date.strftime("%Y-%m-%d")
     target_date_str = target_date.strftime("%d.%m.%Y")
     
+    # Google Calendar API kuralı: Tüm gün etkinliğinin bitiş tarihi 1 gün sonrası (exclusive) olmalıdır
+    end_date_iso = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
+    
     event = {
         'summary': f'TCMB Kurları ({target_date_str})',
         'description': f"Bu kurlar {target_date_str} tarihi için geçerlidir.\n\n{description}",
         'start': {'date': target_date_iso},
-        'end': {'date': target_date_iso},
+        'end': {'date': end_date_iso},
     }
     
     result = service.events().insert(calendarId=calendar_id, body=event).execute()
-    print(f"Etkinlik {target_date_str} tarihine oluşturuldu: {result.get('htmlLink')}")
+    print(f"Etkinlik {target_date_str} tarihine başarıyla oluşturuldu: {result.get('htmlLink')}")
 
 if __name__ == "__main__":
     bulten_tarihi, ozet = get_tcmb_rates()
