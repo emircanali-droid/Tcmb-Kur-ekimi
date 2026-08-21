@@ -55,19 +55,43 @@ def add_to_calendar(bulten_tarihi, description):
     target_date = get_next_business_day(today)
     target_date_iso = target_date.strftime("%Y-%m-%d")
     target_date_str = target_date.strftime("%d.%m.%Y")
-    
-    # Google Calendar API kuralı: Tüm gün etkinliğinin bitiş tarihi 1 gün sonrası (exclusive) olmalıdır
     end_date_iso = (target_date + timedelta(days=1)).strftime("%Y-%m-%d")
     
-    event = {
-        'summary': f'TCMB Kurları ({target_date_str})',
+    event_summary = f'TCMB Kurları ({target_date_str})'
+    event_body = {
+        'summary': event_summary,
         'description': f"Bu kurlar {target_date_str} tarihi için geçerlidir.\n\n{description}",
         'start': {'date': target_date_iso},
         'end': {'date': end_date_iso},
     }
     
-    result = service.events().insert(calendarId=calendar_id, body=event).execute()
-    print(f"Etkinlik {target_date_str} tarihine başarıyla oluşturuldu: {result.get('htmlLink')}")
+    # 1. O tarihte zaten bu başlıkta bir etkinlik var mı kontrol et
+    time_min = f"{target_date_iso}T00:00:00Z"
+    time_max = f"{target_date_iso}T23:59:59Z"
+    
+    existing_events = service.events().list(
+        calendarId=calendar_id,
+        timeMin=time_min,
+        timeMax=time_max,
+        q=event_summary,
+        singleEvents=True
+    ).execute().get('items', [])
+    
+    # 2. Varsa güncelle, yoksa yeni oluştur
+    if existing_events:
+        event_id = existing_events[0]['id']
+        result = service.events().update(
+            calendarId=calendar_id,
+            eventId=event_id,
+            body=event_body
+        ).execute()
+        print(f"Mevcut etkinlik güncellendi: {result.get('htmlLink')}")
+    else:
+        result = service.events().insert(
+            calendarId=calendar_id,
+            body=event_body
+        ).execute()
+        print(f"Yeni etkinlik oluşturuldu: {result.get('htmlLink')}")
 
 if __name__ == "__main__":
     bulten_tarihi, ozet = get_tcmb_rates()
