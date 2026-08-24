@@ -6,14 +6,29 @@ import urllib.request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-def get_next_business_day(current_date):
-    weekday = current_date.weekday()
-    if weekday == 4:  # Cuma -> Pazartesi
-        return current_date + timedelta(days=3)
-    elif weekday == 5:  # Cumartesi -> Pazartesi
-        return current_date + timedelta(days=2)
-    else:
-        return current_date + timedelta(days=1)
+def get_next_business_day_from_bulletin(bulletin_date_str):
+    """
+    Bülten tarihine göre bir sonraki iş gününü (geçerlilik tarihini) hesaplar.
+    """
+    # TCMB tarih formatı: GG.AA.YYYY
+    bulletin_date = datetime.strptime(bulletin_date_str, "%d.%m.%Y")
+    weekday = bulletin_date.weekday()  # 0: Pzt, 4: Cuma, 5: Cmt, 6: Paz
+    
+    if weekday == 4:  # Cuma bülteni -> Pazartesi günü geçerlidir
+        return bulletin_date + timedelta(days=3)
+    elif weekday == 5:  # Cumartesi
+        return bulletin_date + timedelta(days=2)
+    else:  # Pzt, Sal, Çar, Per, Paz
+        return bulletin_date + timedelta(days=1)
+
+def format_rate(rate_str):
+    """
+    Google Sheets TR bölgesel ayarlarında ondalık ayracı virgüldür (,).
+    Noktayı virgüle çevirerek binlik basamak hatasını engeller.
+    """
+    if not rate_str:
+        return ''
+    return rate_str.strip().replace('.', ',')
 
 def get_tcmb_rates():
     url = "https://www.tcmb.gov.tr/kurlar/today.xml"
@@ -25,8 +40,8 @@ def get_tcmb_rates():
     root = ET.fromstring(xml_data)
     bulten_tarihi = root.attrib.get('Tarih', datetime.now().strftime("%d.%m.%Y"))
     
-    today = datetime.now()
-    gecerlilik_tarihi = get_next_business_day(today).strftime("%d.%m.%Y")
+    # Geçerlilik tarihini bülten tarihinden türet
+    gecerlilik_tarihi = get_next_business_day_from_bulletin(bulten_tarihi).strftime("%d.%m.%Y")
     
     target_currencies = ['USD', 'EUR', 'GBP']
     rates_rows = []
@@ -34,13 +49,11 @@ def get_tcmb_rates():
     for currency in root.findall('Currency'):
         code = currency.attrib.get('Kod')
         if code in target_currencies:
-            forex_buy = currency.find('ForexBuying').text or ''
-            forex_sell = currency.find('ForexSelling').text or ''
-            banknote_buy = currency.find('BanknoteBuying').text or ''
-            banknote_sell = currency.find('BanknoteSelling').text or ''
+            forex_buy = format_rate(currency.find('ForexBuying').text or '')
+            forex_sell = format_rate(currency.find('ForexSelling').text or '')
+            banknote_buy = format_rate(currency.find('BanknoteBuying').text or '')
+            banknote_sell = format_rate(currency.find('BanknoteSelling').text or '')
             
-            # Sayısal değerlerdeki noktayı Excel/Sheets formatına uygun dönüştürme opsiyonu
-            # Sheets yerel ayarınıza göre nokta veya virgül otomatik algılanır
             rates_rows.append([
                 bulten_tarihi,
                 gecerlilik_tarihi,
@@ -66,7 +79,7 @@ def sync_to_google_sheets(rows):
     service = build('sheets', 'v4', credentials=creds)
     sheet = service.spreadsheets()
     
-    # 1. Mevcut verileri oku (Başlık var mı ve mükerrer kayıt kontrolü)
+    # Mevcut verileri oku
     result = sheet.values().get(
         spreadsheetId=spreadsheet_id,
         range="Sayfa1!A:H"
@@ -74,7 +87,6 @@ def sync_to_google_sheets(rows):
     
     existing_values = result.get('values', [])
     
-    # Başlık satırı yoksa önce başlıkları ekle
     headers = [
         "Bülten Tarihi", "Geçerlilik Tarihi", "Döviz Kodu",
         "Döviz Alış", "Döviz Satış", "Efektif Alış", "Efektif Satış", "Kayıt Zamanı"
@@ -109,9 +121,9 @@ def sync_to_google_sheets(rows):
             insertDataOption="INSERT_ROWS",
             body={"values": new_rows_to_add}
         ).execute()
-        print(f"{len(new_rows_to_add)} yeni satır Google Sheets'e başarıyla eklendi.")
+        print(f"{len(new_rows_to_add)} yeni satır başarıyla eklendi.")
     else:
-        print("Bu bülten tarihine ait kurlar zaten tabloda mevcut, mükerrer eklenmedi.")
+        print("Bu bülten tarihine ait kurlar zaten mevcut.")
 
 if __name__ == "__main__":
     rates = get_tcmb_rates()
