@@ -1,4 +1,4 @@
-name: TCMB Kurlarini Takvime Isle
+name: TCMB Kurlarini Google Sheets'e Isle
 
 on:
   schedule:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync:
+  sync_sheets:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,9 +23,9 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Kurlari Cek ve Takvime Yaz
+      - name: Kurlari Cek ve Sheets'e Yaz
         env:
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          CALENDAR_ID: ${{ secrets.CALENDAR_ID }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: |
-          python main.py
+          python sheets_tracker.py
